@@ -17,9 +17,13 @@ def visualize_pipeline(steps):
     canvas_width = CANVAS_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
-        # Create title canvas
+        # If this is the final step and title contains 'Original Day Image', don't number it
+        if idx == len(steps) - 1 and 'Original Day Image' in title:
+            step_title = title
+        else:
+            step_title = f"Step {idx+1}: {title}"
         title_canvas = np.ones((title_height, CANVAS_SIZE, 3), dtype=np.uint8) * 255
-        cv2.putText(title_canvas, f"Step {idx+1}: {title}", (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,0), 2)
+        cv2.putText(title_canvas, step_title, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,0), 2)
         step_img = cv2.resize(img, (CANVAS_SIZE, CANVAS_SIZE))
         y_start = idx * (CANVAS_SIZE + STEP_MARGIN + title_height)
         pipeline_canvas[y_start:y_start+title_height, :, :] = title_canvas
@@ -55,9 +59,13 @@ def visualize_histogram_pipeline(steps):
     canvas_width = HISTOGRAM_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
-        # Create title canvas
+        # If this is the final step and title contains 'Original Day Image', don't number it
+        if idx == len(steps) - 1 and 'Original Day Image' in title:
+            step_title = f"{title} Histogram"
+        else:
+            step_title = f"Step {idx+1}: {title} Histogram"
         title_canvas = np.ones((title_height, HISTOGRAM_SIZE, 3), dtype=np.uint8) * 255
-        cv2.putText(title_canvas, f"Step {idx+1}: {title} Histogram", (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,0), 2)
+        cv2.putText(title_canvas, step_title, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,0), 2)
         hist_img = plot_histogram_image(img, title)
         hist_img = cv2.resize(hist_img, (HISTOGRAM_SIZE, HISTOGRAM_SIZE))
         y_start = idx * (HISTOGRAM_SIZE + STEP_MARGIN + title_height)
@@ -88,10 +96,36 @@ def main(day_image_path, night_image_path, results_folder):
     pipeline_steps.append(("Original Night Image", night_image))
 
     current_image = night_image.copy()
-    # Do some enhancements on night_image...
-    # TODO
-    
+
+    # Step 1: Histogram Equalization (per channel)
+    eq_img = np.zeros_like(current_image)
+    for c in range(3):
+        eq_img[:, :, c] = cv2.equalizeHist(current_image[:, :, c])
+    pipeline_steps.append(("Histogram Equalized", eq_img))
+
+    # Step 2: Histogram Matching (specification) to day image
+    def match_histogram(source, reference):
+        matched = np.zeros_like(source)
+        for c in range(3):
+            src = source[:, :, c].ravel()
+            ref = reference[:, :, c].ravel()
+            src_values, src_indices, src_counts = np.unique(src, return_inverse=True, return_counts=True)
+            ref_values, ref_counts = np.unique(ref, return_counts=True)
+            src_cdf = np.cumsum(src_counts).astype(np.float64)
+            src_cdf /= src_cdf[-1]
+            ref_cdf = np.cumsum(ref_counts).astype(np.float64)
+            ref_cdf /= ref_cdf[-1]
+            interp_values = np.interp(src_cdf, ref_cdf, ref_values)
+            matched[:, :, c] = interp_values[src_indices].reshape(source.shape[0], source.shape[1]).astype(np.uint8)
+        return matched
+
+    matched_img = match_histogram(eq_img, day_image)
+    pipeline_steps.append(("Histogram Matched to Day", matched_img))
+
+    # Final processed image
+    current_image = matched_img
     pipeline_steps.append(("Final Processed Image", current_image))
+    pipeline_steps.append(("Original Day Image", day_image))
 
     # Visualize pipeline (images)
     pipeline_canvas = visualize_pipeline(pipeline_steps)
