@@ -1,5 +1,57 @@
 # Mid-Term Project: Night-Time Image Enhancement
 
+---
+
+## Setup
+
+### 1. Clone the repository with submodules
+
+The `src/img2img-turbo` directory is a Git submodule pointing to the forked img2img-turbo repo. After cloning, initialize it with:
+
+```bash
+git clone <your-repo-url>
+cd cs545-midterm-project
+git submodule update --init --recursive
+```
+
+If the submodule was already cloned but is empty, run:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+```
+
+### 3. Install project requirements
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Install img2img-turbo requirements
+
+```bash
+pip install -r src/img2img-turbo/requirements.txt
+```
+
+### 5. Run the full pipeline
+
+```bash
+python main.py --input_night_image data/night.jpg --input_day_image data/day.jpg
+```
+
+Results are saved to the `results/` folder and inference output of img2img to `outputs/inference/`.
+
+---
+
 ## Goal
 
 Given a pair of images of the same scene—one captured at night and the other at day—design and implement your best method to enhance the night-time image so that it matches the day-time appearance as closely as possible.
@@ -16,9 +68,9 @@ $$MSE = \frac{1}{N} \sum (\hat{y} - y)^2$$
 
 **Where:**
 
-* $\hat{y}$: Pixel value in the enhanced image
-* $y$: Pixel value in the day-time image
-* $N$: Total number of pixels (or pixel values)
+- $\hat{y}$: Pixel value in the enhanced image
+- $y$: Pixel value in the day-time image
+- $N$: Total number of pixels (or pixel values)
 
 ### Channel-wise MSE
 
@@ -40,7 +92,7 @@ $$MSE_{overall} = \frac{MSE_R + MSE_G + MSE_B}{3}$$
 
 Students are allowed to use any method to achieve the goal—classical, learning-based, or hybrid approaches.
 If your chosen method requires training or fine-tuning, you must prepare the training data yourself.
- The provided image pair is not sufficient for robust training, so you
+The provided image pair is not sufficient for robust training, so you
 are expected to design or collect additional data (e.g., augmentations,
 synthetic generation, or external datasets) as needed.
 Ensure that your pipeline remains generalizable and does not overfit to the single provided pair.
@@ -49,8 +101,8 @@ Ensure that your pipeline remains generalizable and does not overfit to the sing
 
 You are provided with one pair of images of the same scene (please check the files in Files/Mid-Term/):
 
-* night.png (or .jpg): Night-time capture.
-* day.png (or .jpg): Day-time capture (the reference/target).
+- night.png (or .jpg): Night-time capture.
+- day.png (or .jpg): Day-time capture (the reference/target).
 
 Both images may differ in exposure, noise, white balance, and viewpoint (small shifts).
 Optional: If we release additional hidden pairs,
