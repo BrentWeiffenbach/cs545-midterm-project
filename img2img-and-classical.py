@@ -1,15 +1,55 @@
 import argparse
 import os
+import subprocess
+import sys
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
+# Hardcoded configuration
+MODEL_NAME = "night_to_day"
+INFERENCE_OUTPUT_DIR = "outputs/inference"
+RESULTS_FOLDER = "results"
+USE_FP16 = False
+
 CANVAS_SIZE = 500
 HISTOGRAM_SIZE = 600
-
 STEP_MARGIN = 20
+
+
+# ── img2img ──────────────────────────────────────────────────────────────────
+
+
+def run_inference(input_image):
+    inference_script = os.path.join(
+        os.path.dirname(__file__),
+        "src",
+        "img2img-turbo",
+        "src",
+        "inference_unpaired.py",
+    )
+    cmd = [
+        sys.executable,
+        inference_script,
+        "--model_name",
+        MODEL_NAME,
+        "--input_image",
+        input_image,
+        "--output_dir",
+        INFERENCE_OUTPUT_DIR,
+    ]
+    if USE_FP16:
+        cmd.append("--use_fp16")
+
+    print(f"Running img2img inference: {MODEL_NAME}")
+    subprocess.run(cmd, check=True)
+    bname = os.path.basename(input_image)
+    return os.path.join(INFERENCE_OUTPUT_DIR, bname)
+
+
+# ── Image processing pipeline ────────────────────────────────────────────────
 
 
 def visualize_pipeline(steps):
@@ -19,7 +59,6 @@ def visualize_pipeline(steps):
     canvas_width = CANVAS_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
-        # Create title canvas
         title_canvas = np.ones((title_height, CANVAS_SIZE, 3), dtype=np.uint8) * 255
         cv2.putText(
             title_canvas,
@@ -40,7 +79,6 @@ def visualize_pipeline(steps):
 
 
 def plot_histogram_image(image, title):
-    # image: BGR uint8
     fig, ax = plt.subplots(figsize=(5, 5), dpi=100)
     colors = ("b", "g", "r")
     for i, color in enumerate(colors):
@@ -71,7 +109,6 @@ def visualize_histogram_pipeline(steps):
     canvas_width = HISTOGRAM_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
-        # Create title canvas
         title_canvas = np.ones((title_height, HISTOGRAM_SIZE, 3), dtype=np.uint8) * 255
         cv2.putText(
             title_canvas,
@@ -92,8 +129,16 @@ def visualize_histogram_pipeline(steps):
     return pipeline_canvas
 
 
-def main(day_image_path, night_image_path, results_folder):
-    # Load the images
+def mse_between_images(img1, img2):
+    mse_channels = np.mean(
+        (img1.astype("float") - img2.astype("float")) ** 2, axis=(0, 1)
+    )
+    mse_r, mse_g, mse_b = mse_channels
+    mse_overall = (mse_r + mse_g + mse_b) / 3
+    return mse_r, mse_g, mse_b, mse_overall
+
+
+def run_pipeline(day_image_path, night_image_path, original_night_image_path):
     day_image = cv2.imread(day_image_path)
     if day_image is None:
         raise FileNotFoundError(f"Image not found at {os.path.abspath(day_image_path)}")
@@ -102,21 +147,26 @@ def main(day_image_path, night_image_path, results_folder):
         raise FileNotFoundError(
             f"Image not found at {os.path.abspath(night_image_path)}"
         )
+    original_night_image = cv2.imread(original_night_image_path)
+    if original_night_image is None:
+        raise FileNotFoundError(
+            f"Image not found at {os.path.abspath(original_night_image_path)}"
+        )
 
-    # Resize images to the same size if needed
-    # Professor said in class they should be same size, they are not right now so we will need to reupload data later
-    if day_image.shape != night_image.shape:
+    shapes = [day_image.shape, night_image.shape, original_night_image.shape]
+    if len(set(shapes)) > 1:
         print("Resizing images to the same dimensions...")
         target_size = (
-            min(day_image.shape[1], night_image.shape[1]),
-            min(day_image.shape[0], night_image.shape[0]),
+            min(s[1] for s in shapes),
+            min(s[0] for s in shapes),
         )
         day_image = cv2.resize(day_image, target_size)
         night_image = cv2.resize(night_image, target_size)
+        original_night_image = cv2.resize(original_night_image, target_size)
 
-    # Store pipeline steps for visualization
     pipeline_steps = []
-    pipeline_steps.append(("Original Night Image", night_image))
+    pipeline_steps.append(("Original Night Image", original_night_image))
+    pipeline_steps.append(("img2img Output", night_image))
 
     def match_histogram(source, reference):
         matched = np.zeros_like(source)
@@ -149,8 +199,8 @@ def main(day_image_path, night_image_path, results_folder):
     current_image = cv2.fastNlMeansDenoisingColored(
         current_image,
         None,
-        h=20,  # luminance filter strength (high — dominant noise source)
-        hColor=5,  # color channel filter strength (low — chroma is already clean)
+        h=20,
+        hColor=5,
         templateWindowSize=7,
         searchWindowSize=21,
     )
@@ -162,33 +212,25 @@ def main(day_image_path, night_image_path, results_folder):
 
     pipeline_steps.append(("Final Processed Image", current_image))
 
-    # Save final image
-    os.makedirs(results_folder, exist_ok=True)
-    cv2.imwrite(f"{results_folder}/final_processed_image.png", current_image)
+    os.makedirs(RESULTS_FOLDER, exist_ok=True)
+    cv2.imwrite(f"{RESULTS_FOLDER}/final_processed_image.png", current_image)
 
-    # Visualize pipeline (images)
     pipeline_canvas = visualize_pipeline(pipeline_steps)
-    os.makedirs(results_folder, exist_ok=True)
-    cv2.imwrite(f"{results_folder}/pipeline_overview.png", pipeline_canvas)
+    cv2.imwrite(f"{RESULTS_FOLDER}/pipeline_overview.png", pipeline_canvas)
 
-    # Visualize pipeline (histograms)
     pipeline_hist_canvas = visualize_histogram_pipeline(pipeline_steps)
     cv2.imwrite(
-        f"{results_folder}/pipeline_histogram_overview.png", pipeline_hist_canvas
+        f"{RESULTS_FOLDER}/pipeline_histogram_overview.png", pipeline_hist_canvas
     )
 
-    # Results
-    # Worst-case Channel-wise MSE comparison between day and original night image
     mse_r_worst, mse_g_worst, mse_b_worst, mse_overall_worst = mse_between_images(
-        day_image, night_image
+        day_image, original_night_image
     )
-
     print(
         f"Worst-case Channel-wise MSE: R={mse_r_worst:.2f}, G={mse_g_worst:.2f}, B={mse_b_worst:.2f}"
     )
     print(f"Worst-case averaged MSE (overall): {mse_overall_worst:.2f}")
 
-    # Channel-wise MSE comparison between day and final processed night image
     mse_r_final, mse_g_final, mse_b_final, mse_overall_final = mse_between_images(
         day_image, current_image
     )
@@ -198,35 +240,33 @@ def main(day_image_path, night_image_path, results_folder):
     print(f"Final averaged MSE (overall): {mse_overall_final:.2f}")
 
 
-def mse_between_images(img1, img2):
-    mse_channels = np.mean(
-        (img1.astype("float") - img2.astype("float")) ** 2, axis=(0, 1)
-    )
-    mse_r, mse_g, mse_b = mse_channels
-    mse_overall = (mse_r + mse_g + mse_b) / 3
-    # print(f"Channel-wise MSE: R={mse_r:.2f}, G={mse_g:.2f}, B={mse_b:.2f}")
-    return mse_r, mse_g, mse_b, mse_overall
-
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Image Processing Pipeline")
-    parser.add_argument(
-        "--input_day_image",
-        type=str,
-        default="data/day.jpg",
-        help="Path to the day input image",
-    )
+    parser = argparse.ArgumentParser(description="Night-to-Day full pipeline")
     parser.add_argument(
         "--input_night_image",
         type=str,
         default="data/night.jpg",
-        help="Path to the night input image",
+        help="Path to the input night image",
     )
     parser.add_argument(
-        "--results_folder",
+        "--input_day_image",
         type=str,
-        default="results",
-        help="Path to save results images, plots, or statistics",
+        default="data/day.jpg",
+        help="Path to the ground truth day image",
     )
     args = parser.parse_args()
-    main(args.input_day_image, args.input_night_image, args.results_folder)
+
+    # Step 1: Run img2img-turbo inference
+    img2img_output = run_inference(args.input_night_image)
+    print(f"Inference output saved to: {img2img_output}")
+
+    # Step 2: Run classical image processing pipeline on the inference output
+    print("Running image processing pipeline...")
+    run_pipeline(
+        day_image_path=args.input_day_image,
+        night_image_path=img2img_output,
+        original_night_image_path=args.input_night_image,
+    )
+    print(f"Final results saved to: {RESULTS_FOLDER}")
