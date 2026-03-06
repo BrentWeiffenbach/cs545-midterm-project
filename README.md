@@ -45,10 +45,12 @@ pip install -r src/img2img-turbo/requirements.txt
 ### 5. Run the full pipeline
 
 ```bash
-python main.py --input_night_image data/night.jpg --input_day_image data/day.jpg
+python main.py
 ```
 
 Results are saved to the `results/` folder and inference output of img2img to `outputs/inference/`.
+
+Check out `results/full_figure.png` for all the pipeline results in one image.
 
 ---
 
