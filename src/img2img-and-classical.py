@@ -5,6 +5,7 @@ import sys
 
 import cv2
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     histogram_match,
     mse_between_images,
@@ -15,7 +16,7 @@ from utils import (
 # Hardcoded configuration
 MODEL_NAME = "night_to_day"
 INFERENCE_OUTPUT_DIR = "outputs/inference"
-RESULTS_FOLDER = "results"
+RESULTS_FOLDER = "results/img2img"
 USE_FP16 = False
 
 CANVAS_SIZE = 500
@@ -29,7 +30,6 @@ STEP_MARGIN = 20
 def run_inference(input_image):
     inference_script = os.path.join(
         os.path.dirname(__file__),
-        "src",
         "img2img-turbo",
         "src",
         "inference_unpaired.py",
@@ -138,6 +138,29 @@ def run_pipeline(day_image_path, night_image_path, original_night_image_path):
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+
+
+def run(
+    night_path="data/night.jpg",
+    day_path="data/day.jpg",
+    output_dir="results/img2img",
+):
+    """Callable entry point: run img2img inference then classical post-processing."""
+    global RESULTS_FOLDER
+    RESULTS_FOLDER = output_dir
+
+    print("[img2img] Running inference…")
+    img2img_output = run_inference(night_path)
+    print(f"[img2img] Inference output saved to: {img2img_output}")
+
+    print("[img2img] Running classical post-processing pipeline…")
+    run_pipeline(
+        day_image_path=day_path,
+        night_image_path=img2img_output,
+        original_night_image_path=night_path,
+    )
+    print(f"[img2img] Results saved to: {output_dir}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Night-to-Day full pipeline")

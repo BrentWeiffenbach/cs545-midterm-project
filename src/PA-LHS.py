@@ -457,7 +457,7 @@ def main():
         "--output",
         "-o",
         type=str,
-        default="results/enhanced.png",
+        default="results/pa_lhs/enhanced.png",
         help="[infer] Where to save the enhanced image.",
     )
     parser.add_argument(
@@ -481,6 +481,69 @@ def main():
         _train_cmd(args)
     else:
         _infer_cmd(args)
+
+
+def run(
+    night_path="data/night.jpg",
+    day_path="data/day.jpg",
+    output_dir="results/pa_lhs",
+    prior_path=DEFAULT_PRIOR_PATH,
+):
+    """Callable entry point: train prior if needed, enhance night_path, save outputs."""
+    if not os.path.exists(prior_path):
+        print(f"[PA-LHS] Prior not found at '{prior_path}'. Training on {day_path}…")
+        day_img = load_bgr(day_path)
+        prior = build_prior([day_img], grid_n=GRID_N, n_bins=N_BINS)
+        save_prior(prior, prior_path)
+    else:
+        prior = load_prior(prior_path)
+
+    print(
+        f"[PA-LHS] Loaded prior: {prior['grid_n']}\u00d7{prior['grid_n']} grid, "
+        f"training resolution {prior['image_size'][1]}\u00d7{prior['image_size'][0]}"
+    )
+
+    night = load_bgr(night_path)
+    print(f"[PA-LHS] Input: {night_path}  {night.shape[1]}\u00d7{night.shape[0]}")
+    print("[PA-LHS] Enhancing\u2026")
+    result, steps = enhance(night, prior)
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_img = os.path.join(output_dir, "enhanced.png")
+    cv2.imwrite(out_img, result)
+    print(f"[PA-LHS] Enhanced image \u2192 {out_img}")
+
+    day = load_bgr(day_path)
+    day = cv2.resize(day, (result.shape[1], result.shape[0]))
+    night_r = cv2.resize(night, (result.shape[1], result.shape[0]))
+
+    mr, mg, mb, m_all = mse_between_images(night_r, day)
+    print(
+        f"[PA-LHS] Baseline (raw night vs. day):  "
+        f"R={mr:.1f}  G={mg:.1f}  B={mb:.1f}  overall={m_all:.1f}"
+    )
+    er, eg, eb, e_all = mse_between_images(result, day)
+    print(
+        f"[PA-LHS] Enhanced (PA-LHS output vs. day): "
+        f"R={er:.1f}  G={eg:.1f}  B={eb:.1f}  overall={e_all:.1f}"
+    )
+    print(f"[PA-LHS] MSE reduction: {(1.0 - e_all / m_all) * 100:.1f} %")
+
+    cv2.imwrite(
+        os.path.join(output_dir, "enhanced_pipeline.png"), visualize_pipeline(steps)
+    )
+    cv2.imwrite(
+        os.path.join(output_dir, "enhanced_histograms.png"),
+        visualize_histogram_pipeline(steps),
+    )
+    print(
+        f"[PA-LHS] Pipeline \u2192 {os.path.join(output_dir, 'enhanced_pipeline.png')}"
+    )
+    print(
+        f"[PA-LHS] Histograms \u2192 {os.path.join(output_dir, 'enhanced_histograms.png')}"
+    )
+
+    return result
 
 
 if __name__ == "__main__":

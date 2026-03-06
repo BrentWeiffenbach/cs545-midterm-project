@@ -1,5 +1,15 @@
+import os
+import sys
+
 import cv2
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from utils import (
+    mse_between_images,
+    visualize_histogram_pipeline,
+    visualize_pipeline,
+)
 
 
 def _build_cdf_lookup(
@@ -144,39 +154,102 @@ def evaluate_retinex_algorithms(
         )
 
 
-def post_process(img):
+def post_process(img, reference=None):
     img = cv2.medianBlur(img, 3)
     img = cv2.fastNlMeansDenoisingColored(img, None, 20, 5, 7, 21)
-    reference = cv2.imread("data/day.jpg")
-    assert reference is not None, "Could not read data/day.jpg"
+    if reference is None:
+        reference = cv2.imread("data/day.jpg")
+        assert reference is not None, "Could not read data/day.jpg"
     img = match_histograms_cdf(img, reference)
-
     return img
 
 
-def main():
+def run(
+    night_path="data/night.jpg",
+    day_path="data/day.jpg",
+    output_dir="results/retinex",
+):
     variance_list = [15, 80, 30]
     variance = 300
 
-    img = cv2.imread("data/night.jpg")
-    assert img is not None, "Could not read data/night.jpg"
-    img_msr = MSR(img, variance_list)
-    img_ssr = SSR(img, variance)
+    img = cv2.imread(night_path)
+    assert img is not None, f"Could not read {night_path}"
+    day_image = cv2.imread(day_path)
+    assert day_image is not None, f"Could not read {day_path}"
 
-    img_msr = post_process(img_msr)
-    img_ssr = post_process(img_ssr)
+    if day_image.shape[:2] != img.shape[:2]:
+        day_image = cv2.resize(day_image, (img.shape[1], img.shape[0]))
 
-    cv2.imshow("Original", img)
-    cv2.imshow("MSR", img_msr)
-    cv2.imshow("SSR", img_ssr)
-    cv2.imwrite("SSR.jpg", img_ssr)
-    cv2.imwrite("MSR.jpg", img_msr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    img_msr_raw = MSR(img.copy(), variance_list)
+    img_ssr_raw = SSR(img.copy(), variance)
 
-    day_image = cv2.imread("data/day.jpg")
-    assert day_image is not None, "Could not read data/day.jpg"
-    evaluate_retinex_algorithms({"MSR": img_msr, "SSR": img_ssr}, day_image=day_image)
+    img_msr = post_process(img_msr_raw.copy(), day_image)
+    img_ssr = post_process(img_ssr_raw.copy(), day_image)
+
+    os.makedirs(output_dir, exist_ok=True)
+    cv2.imwrite(os.path.join(output_dir, "msr_enhanced.png"), img_msr)
+    cv2.imwrite(os.path.join(output_dir, "ssr_enhanced.png"), img_ssr)
+    print(f"MSR enhanced image → {os.path.join(output_dir, 'msr_enhanced.png')}")
+    print(f"SSR enhanced image → {os.path.join(output_dir, 'ssr_enhanced.png')}")
+
+    msr_steps = [
+        ("Input (Night)", img),
+        ("After MSR", img_msr_raw),
+        ("Post-processed (MSR)", img_msr),
+    ]
+    cv2.imwrite(
+        os.path.join(output_dir, "msr_pipeline.png"), visualize_pipeline(msr_steps)
+    )
+    cv2.imwrite(
+        os.path.join(output_dir, "msr_histograms.png"),
+        visualize_histogram_pipeline(msr_steps),
+    )
+    print(f"MSR pipeline → {os.path.join(output_dir, 'msr_pipeline.png')}")
+    print(f"MSR histograms → {os.path.join(output_dir, 'msr_histograms.png')}")
+
+    ssr_steps = [
+        ("Input (Night)", img),
+        ("After SSR", img_ssr_raw),
+        ("Post-processed (SSR)", img_ssr),
+    ]
+    cv2.imwrite(
+        os.path.join(output_dir, "ssr_pipeline.png"), visualize_pipeline(ssr_steps)
+    )
+    cv2.imwrite(
+        os.path.join(output_dir, "ssr_histograms.png"),
+        visualize_histogram_pipeline(ssr_steps),
+    )
+    print(f"SSR pipeline → {os.path.join(output_dir, 'ssr_pipeline.png')}")
+    print(f"SSR histograms → {os.path.join(output_dir, 'ssr_histograms.png')}")
+
+    img_r = cv2.resize(img, (day_image.shape[1], day_image.shape[0]))
+    mr, mg, mb, m_all = mse_between_images(img_r, day_image)
+    print(
+        f"\nBaseline (raw night vs. day): "
+        f"R={mr:.1f}  G={mg:.1f}  B={mb:.1f}  overall={m_all:.1f}"
+    )
+
+    msr_r = cv2.resize(img_msr, (day_image.shape[1], day_image.shape[0]))
+    er, eg, eb, e_all = mse_between_images(msr_r, day_image)
+    print(
+        f"MSR (enhanced vs. day):       "
+        f"R={er:.1f}  G={eg:.1f}  B={eb:.1f}  overall={e_all:.1f}"
+    )
+    print(f"MSR MSE reduction: {(1.0 - e_all / m_all) * 100:.1f} %")
+
+    ssr_r = cv2.resize(img_ssr, (day_image.shape[1], day_image.shape[0]))
+    er2, eg2, eb2, e_all2 = mse_between_images(ssr_r, day_image)
+    print(
+        f"SSR (enhanced vs. day):       "
+        f"R={er2:.1f}  G={eg2:.1f}  B={eb2:.1f}  overall={e_all2:.1f}"
+    )
+    print(f"SSR MSE reduction: {(1.0 - e_all2 / m_all) * 100:.1f} %")
+
+    return img_msr, img_ssr
+
+
+def main():
+    run()
 
 
 if __name__ == "__main__":

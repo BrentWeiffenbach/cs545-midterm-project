@@ -3,7 +3,7 @@ import sys
 
 import cv2
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     histogram_match,
     mse_between_images,
@@ -45,6 +45,42 @@ def process_input(label, input_path, ground_truth):
         (f"{label} (Hist-Matched)", img_matched),
     ]
     return pipeline_steps
+
+
+def run(
+    ground_truth_path="data/day.jpg",
+    inputs=None,
+    output_dir="results/foundational_models",
+):
+    """Callable entry point: process foundational model outputs and save results."""
+    if inputs is None:
+        inputs = [
+            ("ChatGPT Day", "data/chatgpt.jpg"),
+            ("Nano Banana", "data/nanoabanana.jpg"),
+        ]
+
+    ground_truth = cv2.imread(ground_truth_path)
+    if ground_truth is None:
+        raise FileNotFoundError(
+            f"Ground truth image not found at {os.path.abspath(ground_truth_path)}"
+        )
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    for label, input_path in inputs:
+        pipeline_steps = process_input(label, input_path, ground_truth)
+        safe_label = label.lower().replace(" ", "_")
+
+        out_img = os.path.join(output_dir, f"{safe_label}_pipeline.png")
+        out_hist = os.path.join(output_dir, f"{safe_label}_histograms.png")
+
+        cv2.imwrite(out_img, visualize_pipeline(pipeline_steps))
+        cv2.imwrite(out_hist, visualize_histogram_pipeline(pipeline_steps))
+
+        print(f"[Foundational] Saved pipeline  \u2192 {out_img}")
+        print(f"[Foundational] Saved histograms \u2192 {out_hist}")
+
+    print(f"[Foundational] All results saved to: {output_dir}")
 
 
 if __name__ == "__main__":

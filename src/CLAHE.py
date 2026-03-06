@@ -38,9 +38,9 @@ from utils import (
 # Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-CLAHE_CLIP = 2.0   # CLAHE clip limit
-CLAHE_TILE = 4     # CLAHE tileGridSize (square)
-CLAHE_PASSES = 2   # number of successive CLAHE applications on L-channel
+CLAHE_CLIP = 2.0  # CLAHE clip limit
+CLAHE_TILE = 4  # CLAHE tileGridSize (square)
+CLAHE_PASSES = 2  # number of successive CLAHE applications on L-channel
 FINAL_SIGMA = 1.8  # Gaussian blur σ for final anti-aliasing / de-blocking
 REF_DAY_PATH = "data/day.jpg"  # reference day image for histogram match
 
@@ -101,7 +101,7 @@ def main():
         "--output",
         "-o",
         type=str,
-        default="results/clahe_enhanced.png",
+        default="results/clahe/clahe_enhanced.png",
         help="Where to save the enhanced image.",
     )
     parser.add_argument(
@@ -149,6 +149,58 @@ def main():
     cv2.imwrite(base + "_histograms.png", visualize_histogram_pipeline(steps))
     print(f"Pipeline visualisation → {base}_pipeline.png")
     print(f"Histogram visualisation → {base}_histograms.png")
+
+
+def run(
+    night_path="data/night.jpg",
+    day_path="data/day.jpg",
+    output_dir="results/clahe",
+):
+    """Callable entry point: enhance night_path, save outputs to output_dir."""
+    global REF_DAY_PATH
+    REF_DAY_PATH = day_path
+
+    night = load_bgr(night_path)
+    print(f"[CLAHE] Input: {night_path}  {night.shape[1]}\u00d7{night.shape[0]}")
+
+    result, steps = enhance(night)
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_img = os.path.join(output_dir, "clahe_enhanced.png")
+    cv2.imwrite(out_img, result)
+    print(f"[CLAHE] Enhanced image \u2192 {out_img}")
+
+    day = load_bgr(day_path)
+    day = cv2.resize(day, (result.shape[1], result.shape[0]))
+    night_r = cv2.resize(night, (result.shape[1], result.shape[0]))
+
+    mr, mg, mb, m_all = mse_between_images(night_r, day)
+    print(
+        f"[CLAHE] Baseline (raw night vs. day):  "
+        f"R={mr:.1f}  G={mg:.1f}  B={mb:.1f}  overall={m_all:.1f}"
+    )
+    er, eg, eb, e_all = mse_between_images(result, day)
+    print(
+        f"[CLAHE] Enhanced (CLAHE output vs. day): "
+        f"R={er:.1f}  G={eg:.1f}  B={eb:.1f}  overall={e_all:.1f}"
+    )
+    print(f"[CLAHE] MSE reduction: {(1.0 - e_all / m_all) * 100:.1f} %")
+
+    cv2.imwrite(
+        os.path.join(output_dir, "clahe_pipeline.png"), visualize_pipeline(steps)
+    )
+    cv2.imwrite(
+        os.path.join(output_dir, "clahe_histograms.png"),
+        visualize_histogram_pipeline(steps),
+    )
+    print(
+        f"[CLAHE] Pipeline visualisation \u2192 {os.path.join(output_dir, 'clahe_pipeline.png')}"
+    )
+    print(
+        f"[CLAHE] Histogram visualisation \u2192 {os.path.join(output_dir, 'clahe_histograms.png')}"
+    )
+
+    return result
 
 
 if __name__ == "__main__":
