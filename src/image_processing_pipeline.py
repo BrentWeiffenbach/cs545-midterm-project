@@ -2,9 +2,8 @@ import argparse
 import cv2
 import numpy as np
 import os
-from nighttime_enhancement import enhance_nighttime_image
 from cdf_histogram_matching import match_histograms_cdf
-from di_retinex_enhancement import enhance_di_retinex
+from retinex_real import MSR
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
@@ -93,10 +92,12 @@ def main(day_image_path, night_image_path, results_folder):
 
     current_image = night_image.copy()
 
+    current_image = MSR(current_image, [15, 80, 30])
+    pipeline_steps.append(("MSR", current_image))
+
     current_image = match_histograms_cdf(current_image, day_image)
     pipeline_steps.append(("Matched Histograms CDF", current_image))
-    current_image = enhance_nighttime_image(day_image, current_image)
-    pipeline_steps.append(("Nighttime Enhanced", current_image))
+
     
     pipeline_steps.append(("Final Processed Image", current_image))
 
