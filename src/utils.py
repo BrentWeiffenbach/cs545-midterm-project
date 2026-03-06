@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,6 +8,14 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 CANVAS_SIZE = 500
 HISTOGRAM_SIZE = 600
 STEP_MARGIN = 20
+
+
+def load_bgr(path: str) -> np.ndarray:
+    """Load a colour image as uint8 BGR. Raises FileNotFoundError if the file cannot be opened."""
+    img = cv2.imread(path)
+    if img is None:
+        raise FileNotFoundError(f"Cannot load image: {os.path.abspath(path)}")
+    return img
 
 
 def histogram_match(source, reference):
@@ -44,10 +54,11 @@ def mse_between_images(img1, img2):
 def visualize_pipeline(steps):
     n_steps = len(steps)
     title_height = 40
-    canvas_height = n_steps * (CANVAS_SIZE + STEP_MARGIN + title_height) - STEP_MARGIN
-    canvas_width = CANVAS_SIZE
+    canvas_width = n_steps * (CANVAS_SIZE + STEP_MARGIN) - STEP_MARGIN
+    canvas_height = title_height + CANVAS_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
+        x_start = idx * (CANVAS_SIZE + STEP_MARGIN)
         title_canvas = np.ones((title_height, CANVAS_SIZE, 3), dtype=np.uint8) * 255
         cv2.putText(
             title_canvas,
@@ -59,10 +70,9 @@ def visualize_pipeline(steps):
             2,
         )
         step_img = cv2.resize(img, (CANVAS_SIZE, CANVAS_SIZE))
-        y_start = idx * (CANVAS_SIZE + STEP_MARGIN + title_height)
-        pipeline_canvas[y_start : y_start + title_height, :, :] = title_canvas
+        pipeline_canvas[0:title_height, x_start : x_start + CANVAS_SIZE] = title_canvas
         pipeline_canvas[
-            y_start + title_height : y_start + title_height + CANVAS_SIZE, :, :
+            title_height : title_height + CANVAS_SIZE, x_start : x_start + CANVAS_SIZE
         ] = step_img
     return pipeline_canvas
 
@@ -92,12 +102,11 @@ def plot_histogram_image(image, title):
 def visualize_histogram_pipeline(steps):
     n_steps = len(steps)
     title_height = 40
-    canvas_height = (
-        n_steps * (HISTOGRAM_SIZE + STEP_MARGIN + title_height) - STEP_MARGIN
-    )
-    canvas_width = HISTOGRAM_SIZE
+    canvas_width = n_steps * (HISTOGRAM_SIZE + STEP_MARGIN) - STEP_MARGIN
+    canvas_height = title_height + HISTOGRAM_SIZE
     pipeline_canvas = np.ones((canvas_height, canvas_width, 3), dtype=np.uint8) * 255
     for idx, (title, img) in enumerate(steps):
+        x_start = idx * (HISTOGRAM_SIZE + STEP_MARGIN)
         title_canvas = np.ones((title_height, HISTOGRAM_SIZE, 3), dtype=np.uint8) * 255
         cv2.putText(
             title_canvas,
@@ -110,9 +119,11 @@ def visualize_histogram_pipeline(steps):
         )
         hist_img = plot_histogram_image(img, title)
         hist_img = cv2.resize(hist_img, (HISTOGRAM_SIZE, HISTOGRAM_SIZE))
-        y_start = idx * (HISTOGRAM_SIZE + STEP_MARGIN + title_height)
-        pipeline_canvas[y_start : y_start + title_height, :, :] = title_canvas
+        pipeline_canvas[0:title_height, x_start : x_start + HISTOGRAM_SIZE] = (
+            title_canvas
+        )
         pipeline_canvas[
-            y_start + title_height : y_start + title_height + HISTOGRAM_SIZE, :, :
+            title_height : title_height + HISTOGRAM_SIZE,
+            x_start : x_start + HISTOGRAM_SIZE,
         ] = hist_img
     return pipeline_canvas
