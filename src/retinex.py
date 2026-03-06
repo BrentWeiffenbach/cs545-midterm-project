@@ -1,3 +1,4 @@
+# Adapted from https://github.com/AKRISH22/Retinex-Image-Enhancement/blob/master/retinex.py
 import os
 import sys
 
