@@ -1,5 +1,5 @@
 """
-CS 545 Mid-Term Project — Master Runner
+CS 545 Mid-Term Project - Master Runner
 ========================================
 
 Runs every image-enhancement technique sequentially on the same hard-coded
@@ -119,8 +119,8 @@ def run_foundational():
 # Each entry: (title label, path to pipeline PNG)
 _PIPELINE_ROWS = [
     ("CLAHE + Gaussian Blur + Histogram Match", "results/clahe/clahe_pipeline.png"),
-    ("Retinex — Multi-Scale (MSR)", "results/retinex/msr_pipeline.png"),
-    ("Retinex — Single-Scale (SSR)", "results/retinex/ssr_pipeline.png"),
+    ("Retinex - Multi-Scale (MSR)", "results/retinex/msr_pipeline.png"),
+    ("Retinex - Single-Scale (SSR)", "results/retinex/ssr_pipeline.png"),
     (
         "PA-LHS (Position-Aware Local Histogram Specification)",
         "results/pa_lhs/enhanced_pipeline.png",
@@ -130,11 +130,11 @@ _PIPELINE_ROWS = [
         "results/img2img/pipeline_overview.png",
     ),
     (
-        "Foundational Model — ChatGPT",
+        "Foundational Model - ChatGPT",
         "results/foundational_models/chatgpt_day_pipeline.png",
     ),
     (
-        "Foundational Model — Nano Banana",
+        "Foundational Model - Nano Banana",
         "results/foundational_models/nano_banana_pipeline.png",
     ),
 ]
@@ -157,7 +157,7 @@ def build_full_figure(output_path="results/full_figure.png") -> None:
     rows = []
     for label, img_path in _PIPELINE_ROWS:
         if not os.path.isfile(img_path):
-            print(f"  [full figure] Skipping '{label}' — file not found: {img_path}")
+            print(f"  [full figure] Skipping '{label}' - file not found: {img_path}")
             continue
 
         img = cv2.imread(img_path)
@@ -196,7 +196,7 @@ def build_full_figure(output_path="results/full_figure.png") -> None:
         rows.append(gap)
 
     if not rows:
-        print("  [full figure] No pipeline images found — skipping.")
+        print("  [full figure] No pipeline images found - skipping.")
         return
 
     # Drop the trailing gap.
@@ -213,7 +213,7 @@ def build_full_figure(output_path="results/full_figure.png") -> None:
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("CS 545 Mid-Term Project — running all techniques")
+    print("CS 545 Mid-Term Project - running all techniques")
     print(f"Night image : {NIGHT_PATH}")
     print(f"Day image   : {DAY_PATH}")
 
